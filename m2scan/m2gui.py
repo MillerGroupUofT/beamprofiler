@@ -488,7 +488,7 @@ class Application(tk.Tk):
 
         t3 = time.time()
         #print(t3-t0, t3-t2)
-        self.statusText.set('Image saved')
+        self.statusText.set('Image saved: ' + '%03d.jpeg' % j)
         
         
     def startPreview(self,display):

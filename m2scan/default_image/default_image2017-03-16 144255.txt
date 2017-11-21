@@ -1,2 +1,0 @@
-2017-03-16T14:42:55.760118 Beam Pointing
-time	x0	y0
