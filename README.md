@@ -42,9 +42,10 @@ From the main screen press 'Beam pointing' to open the Beam Pointing window.
 
 ## 3. beamprofiler
 ### Description
-[beamprofiler](beamprofiler) simply contains the analysis method for images collected with [m2gui](m2scan/m2gui.py).
+[beamprofiler](beamprofiler) simply contains the analysis method for images collected with [m2gui](m2scan/m2gui.py). [beamprofileranalysis](beamprofiler/beamprofileranalysis.py) contain methods for analysis. It should be imported into your own analysis script using `from beamprofileranalysis import *`. This way, the methods can be used without prefix. A demo/template analysis script is included [here](beamprofiler/analysis_script.py), which can simply be modified for your analysis. Be sure to have both the method file and analysis script in the same directory. This does not necessarily need to be the same directory as the data you are analyzing, but that may simplify things for you.
 ### Usage
-For the analysis, images must be accompanied by a text file containing the position elements of the collected images. The text file should have the following format:
+#### Position text file
+For the analysis, images must be accompanied by a text file, named position.txt, containing the position elements of the collected images. The text file should have the following format:
 ```
 <DATE> beam profile z-position
 units = <UNITS>  #units of position data, default is mm
@@ -54,4 +55,11 @@ units = <UNITS>  #units of position data, default is mm
 .
 <posN>
 ```
-The number of position elements MUST match the number of images.
+The number of position elements MUST match the number of images. An example is shown [here](beamprofiler/asymmetric_scan/position.txt). Again, this file MUST be named position.txt, and must be in the same directory as your data.
+#### Analysis script
+You can use the analysis script found [here](beamprofiler/analysis_script.py). The easiest way to run the analysis is as follows:
+1. Create position.txt as described above.
+2. Copy [analysis_script.py](beamprofiler/analysis_script.py) and [beamprofileranalysis.py](beamprofiler/beamprofileranalysis.py) into your data folder.
+3. Ensure [line 20](beamprofiler/analysis_script.py#L20) is set to `cur_dir = True` so data is searched in the current directory (location of method and analysis files).
+4. Run analysis_script.
+5. You can point the analysis_Script to a different data directory by changing Line 20 to `False` and specifying the data folder on Line 21, `alt_file_location = <data_folder>`. Note that position.txt must be in `<data_folder>`.
