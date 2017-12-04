@@ -22,6 +22,13 @@ import uncertainties as un
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.mplot3d import Axes3D
 
+__all__ = ['stop', 'pix2len', 'make_ticklabels_invisible', 'read_position', 'normalize', 'gaussianbeamwaist', 'fit_M2', 'flatten_rgb', 'calculate_beamwidths', 'calculate_2D_moments', 'get_roi', 'BITS', 'SATLIM', 'PIXSIZE']
+
+
+BITS = 8       #image channel intensity resolution
+SATLIM = 0.001  #fraction of non-zero pixels allowed to be saturated
+PIXSIZE = 1.745E-6  #pixel size in m, measured 1.75um in x and y
+
 
 def stop(s = 'error'): raise Exception(s)
 
@@ -47,13 +54,13 @@ def read_position(file_dir):
     '''Parse position file.
     '''
     unit_line = 2
-    pos_file = file_dir + '/position.txt' 
+    pos_file = file_dir + '/position.txt'
     z = np.loadtxt(pos_file, skiprows = unit_line)
     with open(pos_file) as f:
         header = f.readlines()[:unit_line]
-    
+
     unit = header[unit_line-1].split('=')[1].strip().lower()
-    
+
     if unit=='m':
         s = 1
     elif unit=='mm':
@@ -67,11 +74,11 @@ def read_position(file_dir):
     else:
         #default to mm
         s=1E-3
-        
+
     z = 2*s*z
-    
+
     return z
-        
+
 
 def normalize(data, offset=0):
     '''
@@ -87,9 +94,9 @@ def normalize(data, offset=0):
         return np.ones(data.shape) + offset
     else:
         return shift/scale + offset
-    
 
-def gaussianbeamwaist(z,z0,d0,M2=1,wl=1.030E-6,const=0):
+
+def gaussianbeamwaist(z, z0, d0, M2=1, wl=1.030E-6, const=0):
     '''
     generate gaussian beam profile w(z)
 
@@ -117,7 +124,7 @@ def gaussianbeamwaist(z,z0,d0,M2=1,wl=1.030E-6,const=0):
     z = np.asarray(z).astype(float)
     z0 = z0
     w0 = d0/2
-    
+
     w = (w0**2 + M2**2*(wl/(np.pi*w0))**2*(z-z0)**2)**(1/2) + const
 
     return w
@@ -138,7 +145,7 @@ def fit_M2(dz, z, wl=1.03E-6):
         zR = Rayleigh paramter, m
 
     All outputs include associated uncertainties.
-    '''    
+    '''
     di = np.min(dz)
     zi = z[np.argmin(dz)]
     dm = np.max(dz)
@@ -147,7 +154,7 @@ def fit_M2(dz, z, wl=1.03E-6):
     ci = (np.arctan((dm-di)/(zm-zi)))**2
     bi = -2*zi*ci
     ai = di**2 + ci*zi**2
-    
+
     c_lim = np.array([0, np.inf])
     b_lim = np.array([-np.inf,np.inf])
     a_lim = np.array([0, np.inf])
@@ -156,12 +163,12 @@ def fit_M2(dz, z, wl=1.03E-6):
     limits = ([i.min() for i in [a_lim,b_lim,c_lim]],  [i.max() for i in [a_lim,b_lim,c_lim]])
 
     f = lambda z,a,b,c: (a + b*z + c*z**2)**(1/2)
-        
+
     popt,pcov = opt.curve_fit(f,z,dz,p0,bounds=limits)
-    
+
     #create correlated uncertainty values
     (a,b,c) = un.correlated_values(popt,pcov)
-    
+
     z0 = (-b/(2*c))
     d0 = ((4*a*c-b**2)**(1/2))*(1/(2*c**(1/2)))
     M2 = (np.pi/(8*wl))*((4*a*c-b**2)**(1/2))
@@ -172,7 +179,7 @@ def fit_M2(dz, z, wl=1.03E-6):
     std = [x.std_dev for x in [z0,d0,M2,theta,zR]]
 
     return value, std
-    
+
 
 def flatten_rgb(im, bits=8, satlim=0.001):
     '''
@@ -180,25 +187,25 @@ def flatten_rgb(im, bits=8, satlim=0.001):
     '''
 
     sat_det = np.zeros(im.shape[2])
-    
+
     Nnnz = np.zeros(im.shape[2])
     Nsat = np.zeros(im.shape[2])
     data = np.zeros(im[...,0].shape, dtype = 'uint32')
 
     for i in range(im.shape[2]):
-        
+
         Nnnz[i] = (im[:,:,i] != 0).sum()
         Nsat[i] = (im[:,:,i] >= 2**bits-1).sum()
-        
+
         if Nsat[i]/Nnnz[i] <= satlim:
             data += im[:,:,i]
         else:
             sat_det[i] = 1
-    
+
     output = normalize(data.astype(float))
 
     return output, sat_det
-    
+
 
 def calculate_beamwidths(data):
     '''
@@ -228,12 +235,12 @@ def calculate_beamwidths(data):
 
         errx = np.abs(dx-d0x)/d0x
         erry = np.abs(dy-d0y)/d0y
-        
+
         d0x = dx
         d0y = dy
 
-        roi_new = [moments[0]+roi[0]-roi[1]/2,3*dx,moments[1]+roi[2]-roi[3]/2,3*dy]     #[centrex,width,centrey,height] 
-        
+        roi_new = [moments[0]+roi[0]-roi[1]/2,3*dx,moments[1]+roi[2]-roi[3]/2,3*dy]     #[centrex,width,centrey,height]
+
         itN += 1
         if itN >= it_limit:
             print('exceeded iteration in calculating moments')
@@ -242,7 +249,7 @@ def calculate_beamwidths(data):
     #create scaling array for pixels to meters
     #2nd moments must be scaled by square (units m**2)
     pixel_scale = [pix2len(1)]*2 + [pix2len(1)**2]*3
-    
+
     moments = pixel_scale*moments
     [ax,ay,s2x,s2y,s2xy] = moments
 
@@ -277,7 +284,7 @@ def calculate_2D_moments(data, axes_scale=[1,1], calc_2nd_moments = True):
     x,y = np.meshgrid(x,y)
 
     A = np.sum(data*dx*dy)
-    
+
     #first moments (averages)
     avgx = np.sum(data*x*dx*dy)/A
     avgy = np.sum(data*y*dx*dy)/A
@@ -288,7 +295,7 @@ def calculate_2D_moments(data, axes_scale=[1,1], calc_2nd_moments = True):
         sig2x = np.sum(data*(x-avgx)**2*dx*dy)/A
         sig2y = np.sum(data*(y-avgy)**2*dx*dy)/A
         sig2xy = np.sum(data*(x-avgx)*(y-avgy)*dx*dy)/A
-        
+
         return np.array([avgx,avgy,sig2x,sig2y,sig2xy])
 
     else:
@@ -300,7 +307,7 @@ def get_roi(data,roi):
     data = 2D data
     roi = [x0,width,y0,height]
     '''
-    
+
     left = roi[0] - roi[1]/2
     bottom = roi[2] - roi[3]/2
     width = roi[1]
@@ -339,136 +346,3 @@ def get_roi(data,roi):
         height = np.int(height)
 
     return data[bottom:bottom+height,left:left+width]
-
-    
-'''
-End of definitions
-'''    
-
-
-BITS = 8       #image channel intensity resolution
-SATLIM = 0.001  #fraction of non-zero pixels allowed to be saturated
-PIXSIZE = 1.745E-6  #pixel size in m, measured 1.75um in x and y
-
-cur_dir = False
-alt_file_location = '/Users/cpkmanchee/Google Drive/PhD/Data/2017-09-20 Rod seed beam profile/2017-09-20 Unamplied seed'
-
-if cur_dir:
-    file_dir = os.getcwd()
-else:
-    file_dir = alt_file_location
-    
-files = glob.glob(file_dir+'/*.jp*g')
-
-# Consistency check, raises error if failure
-if not files:
-    stop('No files found... try again, but be better')
-
-try:
-    z = read_position(file_dir)
-    #z = np.loadtxt(file_dir + '/position.txt', skiprows = 2)
-    #double pass configuration, covert mm to meters
-    #z = 2*z*1E-3
-except (AttributeError, FileNotFoundError):
-    stop('No position file found --> best be named "position.txt"')
-    
-if np.size(files) is not np.size(z):
-    stop('# of images does not match positions - fix ASAP')
-    
-order = np.argsort(z)
-z = np.array(z)[order]
-files = np.array(files)[order]
-
-#output parameters
-beam_stats = []
-chl_sat = []
-img_roi = []
-
-for f in files:
-    
-    im = plt.imread(f)
-    data, sat = flatten_rgb(im, BITS, SATLIM)
-    d4stats, roi , _ = calculate_beamwidths(data)
-
-    beam_stats += [d4stats]
-    chl_sat += [sat]
-    img_roi += [roi]
-  
-beam_stats = np.asarray(beam_stats)
-chl_sat = np.asarray(chl_sat)
-img_roi = np.asarray(img_roi)
-
-#x and y beam widths
-d4x = beam_stats[:,0]
-d4y = beam_stats[:,1]
-
-#fit to gaussian mode curve
-valx, stdx = fit_M2(d4x,z)
-valy, stdy = fit_M2(d4y,z)
-
-
-##
-#plotting for pretty pictures
-
-#obtain 'focus image'
-focus_number = np.argmin(np.abs(valx[0]-z))
-
-im = plt.imread(files[focus_number])
-data, SAT = flatten_rgb(im, BITS, SATLIM)
-data = normalize(get_roi(data.astype(float), img_roi[focus_number]))
-
-#put x,y in um, z in mm
-x = pix2len(1)*(np.arange(data.shape[1]) - data.shape[1]/2)*1E6
-y = pix2len(1)*(np.arange(data.shape[0]) - data.shape[0]/2)*1E6
-X,Y = np.meshgrid(x,y)
-Z = (z-valx[0])*1E3
-
-#set up plot grid
-plot_grid = [3,6]
-plot_w = 10
-asp_ratio = plot_grid[0]/plot_grid[1]
-plot_h = plot_w*asp_ratio
-
-
-fig = plt.figure(figsize=(plot_w,plot_h), facecolor='w')
-gs = GridSpec(plot_grid[0], plot_grid[1])
-ax1 = plt.subplot(gs[:2, 0])
-# identical to ax1 = plt.subplot(gs.new_subplotspec((0,0), colspan=3))
-ax2 = plt.subplot(gs[:2,1:3])
-ax3 = plt.subplot(gs[:2, 3:], projection='3d')
-ax4 = plt.subplot(gs[2,1:3])
-ax5 = plt.subplot(gs[2,3:])
-ax6 = plt.subplot(gs[-1,0])
-
-ax6.axis('off')
-make_ticklabels_invisible([ax2])
-
-ax2.imshow(data, cmap=plt.cm.plasma, origin='lower', interpolation='bilinear',
-    extent=(x.min(), x.max(), y.min(), y.max()))
-contours = data.max()*(np.exp(-np.array([2,1.5,1])**2/2))
-widths = np.array([0.5,0.25,0.5])
-CS = ax2.contour(data, contours, colors = 'k', linewidths = widths, origin='lower', interpolation='bilinear', extent=(x.min(), x.max(), y.min(), y.max()))
-
-ax4.plot(x, normalize(np.sum(data,0)), 'k')
-ax4.set_xlabel('x (um)')
-
-ax1.plot(normalize(np.sum(data,1)), y, 'k')
-ax1.set_ylabel('y (um)')
-
-ax3.plot_surface(X,Y,data, cmap=plt.cm.plasma)
-ax3.set_ylabel('y (um)')
-ax3.set_xlabel('x (um)')
-
-ax5.plot(Z,d4x*1E6,'bx',markerfacecolor='none')
-ax5.plot(Z,d4y*1E6,'g+',markerfacecolor='none')
-ax5.plot(Z,2*gaussianbeamwaist(z,*valx[:3])*1E6,'b', label='X')
-ax5.plot(Z,2*gaussianbeamwaist(z,*valy[:3])*1E6,'g', label='Y')
-ax5.set_xlabel('z (mm)')
-ax5.set_ylabel('Spot size, 2w (um)')
-ax5.yaxis.tick_right()
-ax5.yaxis.set_label_position('right')
-ax5.legend(loc=9)
-
-ax6.text(-0.2,0.2,'M2x = {:.2f}\nM2y = {:.2f}\nwx = {:.0f} um\nwy = {:.0f} um'.format(valx[2],valy[2],(1E6)*valx[1]/2,(1E6)*valy[1]/2))
-
-plt.show()
