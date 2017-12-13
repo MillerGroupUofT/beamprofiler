@@ -55,7 +55,7 @@ img_roi = []
 for f in files:
 
     im = plt.imread(f)
-    data, sat = flatten_rgb(im, BITS, SATLIM)
+    data, sat = flatten_rgb(im, BITS, SATLIM, sgl_chn=False)
     d4stats, roi , _ = calculate_beamwidths(data)
 
     beam_stats += [d4stats]

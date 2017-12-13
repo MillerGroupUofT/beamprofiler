@@ -181,11 +181,16 @@ def fit_M2(dz, z, wl=1.03E-6):
     return value, std
 
 
-def flatten_rgb(im, bits=8, satlim=0.001):
+def flatten_rgb(im, bits=8, satlim=0.001, sgl_chn=False, force_chn=False):
     '''
     Flattens rbg array, excluding saturated channels
-    '''
+    im should be image from plt.imread(), i.e. numpy array
 
+    sgl_chn = True, return only one channel, selected by brightest non-saturated
+    force_chn = <0,1,2>, force the use of only the specificed channel: 0(r),1(g),or 2(b)
+    
+    if both sgl_chn and force_chn = False, all non-saturated channels are averaged.
+    '''
     sat_det = np.zeros(im.shape[2])
 
     Nnnz = np.zeros(im.shape[2])
@@ -198,11 +203,28 @@ def flatten_rgb(im, bits=8, satlim=0.001):
         Nsat[i] = (im[:,:,i] >= 2**bits-1).sum()
 
         if Nsat[i]/Nnnz[i] <= satlim:
-            data += im[:,:,i]
-        else:
             sat_det[i] = 1
+            #data += im[:,:,i]
+        else:
+            sat_det[i] = 0
+            #sat_det[i] = 1
 
-    output = normalize(data.astype(float))
+    if force_chn is not False:
+        data = im[...,force_chn]
+
+    elif sgl_chn:
+        #selected most intense, non-saturated channel
+        data = (sat_det*im)[...,np.argmax(sat_det*Nnnz)]
+    else:
+        #average over non-saturated channels
+        data = (sat_det*im).mean(2)
+
+
+    if not data.any():
+        warnings.warn('No unsaturated channels found.')
+        output = data.astype(float)
+    else:
+        output = normalize(data.astype(float))
 
     return output, sat_det
 
